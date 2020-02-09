@@ -9,6 +9,7 @@
 
 **Route Map**
 
+![Image of Route Map](https://www.dropbox.com/s/nc9t60sk4gyrbok/route-map.png?dl=0)
 
 ***Contribution Guidance***
 
