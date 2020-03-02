@@ -58,6 +58,7 @@ class StrSumo:
             # make a decision for each vehicle
             vehicle_ids = set(traci.vehicle.getIDList())
 
+            # TODO - there is probably a more efficient way to calculate cars per edge
             self.connection_info.edge_vehicle_count.clear()
 
             # iterate through vehicles currently in simulation
@@ -82,26 +83,27 @@ class StrSumo:
                     elif current_edge == destination[vehicle_id]:
                         continue
 
-                    #current_edge[vehicle_id] = temp_curr_edge
                     if current_edge != self.controlled_vehicles[vehicle_id].current_edge:
                         self.controlled_vehicles[vehicle_id].current_edge = current_edge
                         vehicles_to_direct.append(self.controlled_vehicles[vehicle_id])
-
 
             vehicle_decisions_by_id = self.route_controller.make_decisions(vehicles_to_direct, self.connection_info)
 
             for vehicle_id, decision in vehicle_decisions_by_id:
                 #  find the edge pointed to by the direction found in make_decision
-                current_edge = self.controlled_vehicles[vehicle_id].current_edge
-                target_edge = self.connection_info.outgoing_edges_dict[current_edge][decision]
+                current_edge_of_vehicle = self.controlled_vehicles[vehicle_id].current_edge
+                target_edge = self.connection_info.outgoing_edges_dict[current_edge_edge_of_vehicle][decision]
                 traci.vehicle.changeTarget(vehicle_id, target_edge)
 
-            arrived_at_destination = traci.simulation.getArrivedIDList()
+            arrived_at_destination = traci.simulation.getArrivedIDList() #  TODO: not sure this is the right way to get finished vehicles, since we change TRACI targets to direct vehicles
 
             for vehicle_id in arrived_at_destination:
                 if vehicle_id in self.controlled_vehicles:
                     total_time += step - entry_time_step[vehicle_id]
                     end_number += 1
+                    if step > self.controlled_vehicles[vehicle_id].deadline:
+                        deadlines_missed.append(vehicle_id)
+
                 del entry_time_step[vehicle_id]
 
             traci.simulationStep()
@@ -113,13 +115,14 @@ class StrSumo:
 
         return total_time, end_number, deadlines_missed
 
+    #  This is a dummy method for getting vehicles; the vehicle generation code will provide the list of controlled vehicles in practice
     def get_controlled_vehicles(self):
-        vehicle_list = []
+        vehicle_list = {}
 
-        #  just generate 1000 random vehicles for now...
+        #  just generate 1000 dummy vehicles for now...
         for i in range(1000):
             new_vehicle = Vehicle(i, "", 0, float('inf'))
-            vehicle_list.append(new_vehicle)
+            vehicle_list[i] = new_vehicle
 
         return vehicle_list
 
@@ -134,7 +137,8 @@ class Vehicle:
 
 class ConnectionInfo:
     """
-    Parses and stores network information from net_file  as collections
+    Parses and stores network information from net_file  as collections.
+    The idea is to use this information in the scheduling algorithm.
     Available collections:
         - out_going_edges_dict {edge_id: {direction: out_edge}}
         - edge_length_dict {edge_id: edge_length}
