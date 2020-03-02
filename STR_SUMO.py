@@ -30,12 +30,12 @@ SLIGHT_RIGHT = "R"
 class StrSumo:
     def __init__(self, route_controller):
         """
-        :param route_controller: uses a scheduling algorithm to make vehicle routing decisions
+        :param route_controller: object that implements the scheduling algorithm for controlled vehicles
         """
         self.direction_choices = [STRAIGHT, TURN_AROUND, SLIGHT_RIGHT, RIGHT, SLIGHT_LEFT, LEFT]
         self.connection_info = ConnectionInfo(NET_FILENAME)
         self.route_controller = route_controller(self.connection_info)
-        self.controlled_vehicles = self.get_controlled_vehicles()
+        self.controlled_vehicles = self.get_controlled_vehicles() # dictionary of Vehicles by id
 
     def run(self):
         """
@@ -49,51 +49,61 @@ class StrSumo:
         deadlines_missed = 0
 
         step = 0
-        previous_edge = {}
-        current_edge = {}
-        entry_time_step = {}  # tracks the time step of each vehicle's entry to the simulation
+        vehicles_to_direct = [] #  the batch of controlled vehicles passed to make_decisions()
+        #previous_edge = {}
+        #current_edge = {}
+        #entry_time_step = {}  # tracks the time step of each vehicle's entry to the simulation
 
         while traci.simulation.getMinExpectedNumber() > 0:
             # make a decision for each vehicle
             vehicle_ids = set(traci.vehicle.getIDList())
 
+            # TODO - there is probably a more efficient way to calculate cars per edge
+            self.connection_info.edge_vehicle_count.clear()
+
             # iterate through vehicles currently in simulation
             for vehicle_id in vehicle_ids:
 
+                # TODO - there is probably a more efficient way to calculate cars per edge
+                self.connection_info.edge_vehicle_count[traci.vehicle.getRoadID(vehicle_id)] += 1
+
                 # handle newly arrived controlled vehicles
                 if vehicle_id not in entry_time_step.keys() and vehicle_id in self.controlled_vehicles:
-                    entry_time_step[vehicle_id] = step
-                    previous_edge[vehicle_id] = ""
-                    current_edge[vehicle_id] = traci.vehicle.getRoadID(vehicle_id)
+                    #entry_time_step[vehicle_id] = step #  now stored in Vehicle object set at init
+                    #previous_edge[vehicle_id] = "" #  now stored in Vehicle object and set at init
+                    #current_edge[vehicle_id] = traci.vehicle.getRoadID(vehicle_id) #  now stored in Vehicle object and set at init
 
                     traci.vehicle.setColor(vehicle_id, (255, 0, 0))
 
                 if vehicle_id in self.controlled_vehicles:
-                    temp_curr_edge = traci.vehicle.getRoadID(vehicle_id)
+                    current_edge = traci.vehicle.getRoadID(vehicle_id)
 
-                    if temp_curr_edge not in self.connection_info.edge_index_dict.keys():
+                    if current_edge not in self.connection_info.edge_index_dict.keys():
                         continue  # road is not valid(?)
-                    elif temp_curr_edge == destination[vehicle_id]: # QUESTION: how are we keeping track of destinations?
+                    elif current_edge == destination[vehicle_id]:
                         continue
 
-                    current_edge[vehicle_id] = temp_curr_edge
-                    if current_edge[vehicle_id] != previous_edge[vehicle_id]:
-                        # make a decision and set traci target to that decision
-                        action = self.route_controller.make_decision(vehicle_id)
+                    if current_edge != self.controlled_vehicles[vehicle_id].current_edge:
+                        self.controlled_vehicles[vehicle_id].current_edge = current_edge
+                        vehicles_to_direct.append(self.controlled_vehicles[vehicle_id])
 
-                        # TODO: error check action
+            vehicle_decisions_by_id = self.route_controller.make_decisions(vehicles_to_direct, self.connection_info)
 
-                        target_edge = self.connection_info.outgoing_edges_dict[vehicle_id][action]
-                        previous_edge[vehicle_id] = current_edge
-                        traci.vehicle.changeTarget(vehicle_id, target_edge)
+            for vehicle_id, decision in vehicle_decisions_by_id:
+                #  find the edge pointed to by the direction found in make_decision
+                current_edge_of_vehicle = self.controlled_vehicles[vehicle_id].current_edge
+                target_edge = self.connection_info.outgoing_edges_dict[current_edge_edge_of_vehicle][decision]
+                traci.vehicle.changeTarget(vehicle_id, target_edge)
 
-
-            arrived_at_destination = traci.simulation.getArrivedIDList()
+            arrived_at_destination = traci.simulation.getArrivedIDList() #  TODO: not sure this is the right way to get finished vehicles, since we change TRACI targets to direct vehicles
 
             for vehicle_id in arrived_at_destination:
                 if vehicle_id in self.controlled_vehicles:
                     total_time += step - entry_time_step[vehicle_id]
                     end_number += 1
+                    if step > self.controlled_vehicles[vehicle_id].deadline:
+                        deadlines_missed.append(vehicle_id)
+
                 del entry_time_step[vehicle_id]
 
             traci.simulationStep()
@@ -105,20 +115,44 @@ class StrSumo:
 
         return total_time, end_number, deadlines_missed
 
+    #  This is a dummy method for getting vehicles; the vehicle generation code will provide the list of controlled vehicles in practice
     def get_controlled_vehicles(self):
-        return []
+        vehicle_list = {}
+
+        #  just generate 1000 dummy vehicles for now...
+        for i in range(1000):
+            new_vehicle = Vehicle(i, "", 0, float('inf'))
+            vehicle_list[i] = new_vehicle
+
+        return vehicle_list
+
+class Vehicle:
+    def __init__(self, vehicle_id, destination, start_time, deadline):
+        self.vehicle_id = vehicle_id
+        self.destination = destination
+        self.start_time = start_time
+        self.deadline = deadline
+        self.current_edge = ""
 
 
-class ConnectionInfo(self):
+class ConnectionInfo:
     """
-    Parses and stores network information from net_file to be used by scheduler algorithms
+    Parses and stores network information from net_file  as collections.
+    The idea is to use this information in the scheduling algorithm.
+    Available collections:
+        - out_going_edges_dict {edge_id: {direction: out_edge}}
+        - edge_length_dict {edge_id: edge_length}
+        - edge_index_dict {edge_index_dict} keep track of edge ids by an index
+        - edge_vehicle_count {edge_id: number of vehicles at edge}
+        - edge_list [edge_id]
     :param net_file: file name of a SUMO network file, e.g. 'test.net.xml'
     """
     def __init__(self, net_file):
         net = sumolib.net.readNet(net_file)
-        self.outgoing_edges_dict = {}  # {edge_id: {direction: out_edge}}
-        self.edge_length_dict = {}  # {edge_id: edge_length}
-        self.edge_index_dict = {}  # {edge_index_dict} keep track of edge ids by an index
+        self.outgoing_edges_dict = {}
+        self.edge_length_dict = {}
+        self.edge_index_dict = {}  #
+        self.edge_vehicle_count = {} #
         self.edge_list = []
 
         edge_index = 0
@@ -157,8 +191,3 @@ class ConnectionInfo(self):
                 for connection in connections:
                     direction = connection.getDirection()
                     self.outgoing_edges_dict[current_edge_id][direction] = current_outgoing_edge.getId()
-
-
-# dummy_algo = algorithm()
-# simulation = STR_SUMO()
-# simulation.run()
