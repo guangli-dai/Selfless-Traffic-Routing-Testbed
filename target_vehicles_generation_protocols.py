@@ -58,6 +58,9 @@ class target_vehicles_generator:
                                                     }
     """
     target_vehicles_output_dict = {}
+    VEHICLES_INFO = "vehicles info"
+    __ERROR_MESSAGE__ = "error message"
+    
 
     def __init__(self):
         """
@@ -71,15 +74,16 @@ class target_vehicles_generator:
         
         self.__current_target_xml_file__ = ""
 
-    def generate_target_vehicles(self, num_vehicles, target_xml_file, pattern):
+    def generate_target_vehicles(self, num_vehicles, target_xml_file, pattern=None):
         """
             param @num_vehicles <int>: the number of target-vehicles desired.
             param @target_xml_file <str>: name of the target xml file.
-            param @pattern <--TODO-->: one of three possible patterns
+            param @pattern <tuple>: one of four possible patterns. FORMAT:
             -- CASES BEGIN --
-                1. [one start point, one destination]
-                2. [multiple random start-points, one destination]
-                3. [multiple random start-points, multiple random destinations]
+                1. (one_start_point <sumolib.net.edge.Edge>, one_destination <sumolib.net.edge.Edge>)
+                2. (random_ranged_start-points <list<sumolib.net.edge.Edge>>, one_destination <sumolib.net.edge.Edge>)
+                3. (random_ranged_start-points <list<sumolib.net.edge.Edge>>, random_ranged_destinations <list<sumolib.net.edge.Edge>>)
+                4. None
             -- CASES END --.
             
             var @vehicles_info <list>: the target-vehicle information to return from this
@@ -87,28 +91,63 @@ class target_vehicles_generator:
             
             The function generates target-vehicle information based on the desired
             number, output xml file, generation pattern specified by the input
-            parameters. The start point(s) are written into the output xml file, and
-            the list of the generated vehicles' information (in tuples) is returned.
+            parameters. If the value passed to pattern is None, or is not specified,
+            the function will interpret it as a generation pattern of @num_vehicles pairs
+            of random start-points and random destionations from the whole of
+            @target_vehicles_generator.edge_list. The start point(s) are written into
+            the output xml file, and the list of the generated vehicles' information
+            (in tuples) is returned.
         """
+        
         vehicles_info = []
         self.__current_target_xml_file__ = target_xml_file
         if target_xml_file not in target_vehicles_generator.target_vehicles_output_dict:
             target_vehicles_generator.target_vehicles_output_dict[target_xml_file] = 0
         
-        # TODO: Call appropriate member functions according to the pattern specified:
+        __error_message__ = None
+        # Call appropriate member functions according to the pattern specified:
+        if type(pattern) is tuple:
+            if type(pattern[0]) is sumolib.net.edge.Edge:
+                if type(pattern[1]) is sumolib.net.edge.Edge:
+                    # -- CASE 1. --
+                    vehicles_info = self.generate_with_one_start_one_dest(num_vehicles, pattern[0], pattern[1])
+                else:
+                    __error_message__ = "Invalid pattern for generating random vehicles: The 1st element of " + str(pattern) + " is not an instance of sumolib.net.edge.Edge!"
+            elif type(pattern[0]) is list:
+                if type(pattern[1]) is sumolib.net.edge.Edge:
+                    # -- CASE 2. --
+                    vehicles_info = self.generate_with_ranged_starts_one_dest(num_vehicles, pattern[0], pattern[1])
+                elif type(pattern[1]) is list:
+                    # -- CASE 3. --
+                    vehicles_info = self.generate_with_ranged_starts_ranged_dests(num_vehicles, pattern[0], pattern[1])
+                else:
+                    __error_message__ = "Invalid pattern for generating random vehicles: The 1st element of " + str(pattern) + " is not an instance of sumolib.net.edge.Edge or a list of such instances!"
+            else:
+                __error_message__ = "Invalid pattern for generating random vehicles: The 0th element of " + str(pattern) + " is not an instance of sumolib.net.edge.Edge or a list of such instances!"
+        elif pattern == None:
+            # -- Case 4. --
+            vehicles_info = self.generate_with_rand_starts_rand_dests(num_vehicles)
+        else:
+            __error_message__ = "Invalid pattern for generating random vehicles: " + str(pattern) + " is not a tuple!"
+        
+        # TODO: Write the start-point(s) of the vehicle information into the output xml file (Why?):
         
         # Update the generated vehicle count:
-        target_vehicles_generator.target_vehicles_output_dict[target_xml_file] += num_vehicles
+        if __error_message__ != None:
+            target_vehicles_generator.target_vehicles_output_dict[target_xml_file] += num_vehicles
         
         # TODO: The tuple elements for the information of a vehicle are to be determined.
-        return vehicles_info
+        return {
+            target_vehicles_generator.VEHICLES_INFO: vehicles_info,
+            target_vehicles_generator.__ERROR_MESSAGE__: __error_message__
+        }
     
     
     def generate_with_one_start_one_dest(self, num_vehicles, start_point, destination):
         """
             param @num_vehicles <int>: the number of target-vehicles desired.
-            param @start_point <sumolib.net.Edge>: the start-point of each target-vehicle.
-            param @destination <sumolib.net.Edge>: the destination of each target-vehicle.
+            param @start_point <sumolib.net.edge.Edge>: the start-point of each target-vehicle.
+            param @destination <sumolib.net.edge.Edge>: the destination of each target-vehicle.
             
             var @vehicles_info <list>: the target-vehicle information to return from this
                                        function.
@@ -147,7 +186,7 @@ class target_vehicles_generator:
             param @num_vehicles <int>: the number of target-vehicles desired.
             param @start_point_lst <list>: a list of start-points, from which one for each
                                            target-vehicle is randomly selected.
-            param @destination <sumolib.net.Edge>: the destination of each target-vehicle.
+            param @destination <sumolib.net.edge.Edge>: the destination of each target-vehicle.
             
             var @vehicles_info <list>: the target-vehicle information to return from this
                                        function.
@@ -316,9 +355,9 @@ class target_vehicles_generator:
     
 def validate_path(net, start_point, destination):
     """
-        param @net <sumolib.Net>: parameter that stores the information of a map.
-        param @start_point <sumolib.net.Edge>: a start-point on the map from @net.
-        param @destination <sumolib.net.Edge>: a destination on the map from @net.
+        param @net <sumolib.net.Net>: parameter that stores the information of a map.
+        param @start_point <sumolib.net.edge.Edge>: a start-point on the map from @net.
+        param @destination <sumolib.net.edge.Edge>: a destination on the map from @net.
         
         Function to validate the existence of a path from @start_point to @destination,
         using the shortest path algorithm offered by @net; returns True if such a path
@@ -349,44 +388,6 @@ def __random_choices_with_rp__(lst, k=1):
         
 
 
-# Test random.choices:
 
-generator = target_vehicles_generator()
-generator.net = network_map_data_structures.getNetInfo("test.net.xml")
-[generator.length_dict, generator.out_dict, generator.index_dict, generator.edge_list] = network_map_data_structures.getEdgesInfo(generator.net)
-
-generator.__current_target_xml_file__ = "test.rou.xml"
-target_vehicles_generator.target_vehicles_output_dict[generator.__current_target_xml_file__] = 0
-
-
-# Unit Tests:
-
-print("************** generate_with_one_start_one_dest ******************\n")
-result_lst = generator.generate_with_one_start_one_dest(5, random.choice(generator.edge_list), random.choice(generator.edge_list))
-if result_lst != None:
-    for result in result_lst:
-        print(result[0], result[1][0].getID(), result[1][1].getID(), result[2])
-print("\n")
-
-
-print("************** generate_with_ranged_starts_one_dest ******************\n")
-result_lst = generator.generate_with_ranged_starts_one_dest(5, __random_choices_with_rp__(generator.edge_list, 30), random.choice(generator.edge_list))
-for result in result_lst:
-    print(result[0], result[1][0].getID(), result[1][1].getID(), result[2])
-print("\n")
-
-
-print("************** generate_with_ranged_starts_ranged_dests ******************\n")
-result_lst = generator.generate_with_ranged_starts_ranged_dests(5, __random_choices_with_rp__(generator.edge_list, 30), __random_choices_with_rp__(generator.edge_list, 30))
-for result in result_lst:
-    print(result[0], result[1][0].getID(), result[1][1].getID(), result[2])
-print("\n")
-
-
-print("************** generate_with_rand_starts_rand_dests ******************\n")
-result_lst = generator.generate_with_rand_starts_rand_dests(5)
-for result in result_lst:
-    print(result[0], result[1][0].getID(), result[1][1].getID(), result[2])
-print("\n")
 
 #os.system(command)

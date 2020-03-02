@@ -1,5 +1,6 @@
 """
-    
+    This file contains functions to organise traffic network data
+    into data structures in Python.
 """
 
 import sys
