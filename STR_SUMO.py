@@ -1,7 +1,9 @@
 import os
 import sys
 import optparse
-import xml.dom.minidom
+from xml.dom.minidom import parse, parseString
+from RouteController import *
+from Util import *
 
 if 'SUMO_HOME' in os.environ:
     tools = os.path.join(os.environ['SUMO_HOME'], 'tools')
@@ -18,7 +20,6 @@ SUMO Selfless Traffic Routing (STR) Testbed
 """
 
 MAX_SIMULATION_STEPS = 5000
-NET_FILENAME = "test.net.xml"
 
 STRAIGHT = "s"
 TURN_AROUND = "t"
@@ -28,13 +29,13 @@ SLIGHT_LEFT = "L"
 SLIGHT_RIGHT = "R"
 
 class StrSumo:
-    def __init__(self, route_controller):
+    def __init__(self, route_controller, connection_info):
         """
         :param route_controller: object that implements the scheduling algorithm for controlled vehicles
         """
         self.direction_choices = [STRAIGHT, TURN_AROUND, SLIGHT_RIGHT, RIGHT, SLIGHT_LEFT, LEFT]
-        self.connection_info = ConnectionInfo(NET_FILENAME)
-        self.route_controller = route_controller(self.connection_info)
+        self.connection_info = connection_info
+        self.route_controller = route_controller
         self.controlled_vehicles = self.get_controlled_vehicles() # dictionary of Vehicles by id
 
     def run(self):
@@ -50,70 +51,75 @@ class StrSumo:
 
         step = 0
         vehicles_to_direct = [] #  the batch of controlled vehicles passed to make_decisions()
-        #previous_edge = {}
-        #current_edge = {}
-        #entry_time_step = {}  # tracks the time step of each vehicle's entry to the simulation
+        vehicle_IDs_in_simulation = []
 
-        while traci.simulation.getMinExpectedNumber() > 0:
-            # make a decision for each vehicle
-            vehicle_ids = set(traci.vehicle.getIDList())
+        try:
+            while traci.simulation.getMinExpectedNumber() > 0:
+                vehicle_ids = set(traci.vehicle.getIDList())
 
-            # TODO - there is probably a more efficient way to calculate cars per edge
-            self.connection_info.edge_vehicle_count.clear()
+                # store edge vehicle counts in connection_info.edge_vehicle_count
+                self.get_edge_vehicle_counts()
 
-            # iterate through vehicles currently in simulation
-            for vehicle_id in vehicle_ids:
+                # iterate through vehicles currently in simulation
+                for vehicle_id in vehicle_ids:
 
-                # TODO - there is probably a more efficient way to calculate cars per edge
-                self.connection_info.edge_vehicle_count[traci.vehicle.getRoadID(vehicle_id)] += 1
+                    self.connection_info.edge_vehicle_count[traci.vehicle.getRoadID(vehicle_id)] += 1
 
-                # handle newly arrived controlled vehicles
-                if vehicle_id not in entry_time_step.keys() and vehicle_id in self.controlled_vehicles:
-                    #entry_time_step[vehicle_id] = step #  now stored in Vehicle object set at init
-                    #previous_edge[vehicle_id] = "" #  now stored in Vehicle object and set at init
-                    #current_edge[vehicle_id] = traci.vehicle.getRoadID(vehicle_id) #  now stored in Vehicle object and set at init
+                    # handle newly arrived controlled vehicles
+                    if vehicle_id not in vehicle_IDs_in_simulation and vehicle_id in self.controlled_vehicles:
+                        vehicle_IDs_in_simulation.append(vehicle_id)
+                        traci.vehicle.setColor(vehicle_id, (255, 0, 0)) # set color so we cant visually track controlled vehicles
 
-                    traci.vehicle.setColor(vehicle_id, (255, 0, 0))
+                    if vehicle_id in self.controlled_vehicles.keys():
+                        current_edge = traci.vehicle.getRoadID(vehicle_id)
 
-                if vehicle_id in self.controlled_vehicles:
-                    current_edge = traci.vehicle.getRoadID(vehicle_id)
+                        if current_edge not in self.connection_info.edge_index_dict.keys():
+                            continue
+                        elif current_edge == self.controlled_vehicles[vehicle_id].destination:
+                            continue
 
-                    if current_edge not in self.connection_info.edge_index_dict.keys():
-                        continue  # road is not valid(?)
-                    elif current_edge == destination[vehicle_id]:
-                        continue
+                        if current_edge != self.controlled_vehicles[vehicle_id].current_edge:
+                            self.controlled_vehicles[vehicle_id].current_edge = current_edge
+                            self.controlled_vehicles[vehicle_id].current_speed = traci.vehicle.getSpeed(vehicle_id)
+                            vehicles_to_direct.append(self.controlled_vehicles[vehicle_id])
 
-                    if current_edge != self.controlled_vehicles[vehicle_id].current_edge:
-                        self.controlled_vehicles[vehicle_id].current_edge = current_edge
-                        vehicles_to_direct.append(self.controlled_vehicles[vehicle_id])
+                vehicle_decisions_by_id = self.route_controller.make_decisions(vehicles_to_direct, self.connection_info)
 
-            vehicle_decisions_by_id = self.route_controller.make_decisions(vehicles_to_direct, self.connection_info)
+                for vehicle_id, decision in vehicle_decisions_by_id:
+                    if decision not in self.connection_info.outgoing_edges_dict[self.controlled_vehicles[vehicle_id].current_edge]:
+                        raise ValueError(f'{decision} does not lead to a valid edge from edge '
+                                         f'{self.controlled_vehicles[vehicle_id].current_edge}')
 
-            for vehicle_id, decision in vehicle_decisions_by_id:
-                #  find the edge pointed to by the direction found in make_decision
-                current_edge_of_vehicle = self.controlled_vehicles[vehicle_id].current_edge
-                target_edge = self.connection_info.outgoing_edges_dict[current_edge_edge_of_vehicle][decision]
-                traci.vehicle.changeTarget(vehicle_id, target_edge)
+                    current_edge_of_vehicle = self.controlled_vehicles[vehicle_id].current_edge
+                    target_edge = self.connection_info.outgoing_edges_dict[current_edge_of_vehicle][decision]
+                    traci.vehicle.changeTarget(vehicle_id, target_edge)
 
-            arrived_at_destination = traci.simulation.getArrivedIDList() #  TODO: not sure this is the right way to get finished vehicles, since we change TRACI targets to direct vehicles
 
-            for vehicle_id in arrived_at_destination:
-                if vehicle_id in self.controlled_vehicles:
-                    total_time += step - entry_time_step[vehicle_id]
-                    end_number += 1
-                    if step > self.controlled_vehicles[vehicle_id].deadline:
-                        deadlines_missed.append(vehicle_id)
+                arrived_at_destination = traci.simulation.getArrivedIDList()
 
-                del entry_time_step[vehicle_id]
+                for vehicle_id in arrived_at_destination:
+                    if vehicle_id in self.controlled_vehicles:
+                        total_time += step - self.controlled_vehicles[vehicle_id].start_time
+                        end_number += 1
+                        if step > self.controlled_vehicles[vehicle_id].deadline:
+                            deadlines_missed.append(vehicle_id)
 
-            traci.simulationStep()
-            step += 1
 
-            if step >= MAX_SIMULATION_STEPS:
-                break
+                traci.simulationStep()
+                step += 1
+
+                if step > MAX_SIMULATION_STEPS:
+                    break
+
+        except ValueError as err:
+            print(err)
 
 
         return total_time, end_number, deadlines_missed
+
+    def get_edge_vehicle_counts(self):
+        for edge in self.connection_info.edge_list:
+            self.connection_info.edge_vehicle_count[edge] = traci.edge.getLastStepVehicleNumber(edge)
 
     #  This is a dummy method for getting vehicles; the vehicle generation code will provide the list of controlled vehicles in practice
     def get_controlled_vehicles(self):
@@ -126,68 +132,27 @@ class StrSumo:
 
         return vehicle_list
 
-class Vehicle:
-    def __init__(self, vehicle_id, destination, start_time, deadline):
-        self.vehicle_id = vehicle_id
-        self.destination = destination
-        self.start_time = start_time
-        self.deadline = deadline
-        self.current_edge = ""
+
+sumo_binary = checkBinary('sumo-gui')
+
+# parse config file for map file name
+dom = parse("myconfig.sumocfg")
+
+net_file_node = dom.getElementsByTagName('net-file')
+net_file_attr = net_file_node[0].attributes
+
+net_file = net_file_attr['value'].nodeValue
+init_connection_info = ConnectionInfo(net_file)
+
+scheduler = RandomPolicy(init_connection_info)
+simulation = StrSumo(scheduler, init_connection_info)
 
 
-class ConnectionInfo:
-    """
-    Parses and stores network information from net_file  as collections.
-    The idea is to use this information in the scheduling algorithm.
-    Available collections:
-        - out_going_edges_dict {edge_id: {direction: out_edge}}
-        - edge_length_dict {edge_id: edge_length}
-        - edge_index_dict {edge_index_dict} keep track of edge ids by an index
-        - edge_vehicle_count {edge_id: number of vehicles at edge}
-        - edge_list [edge_id]
-    :param net_file: file name of a SUMO network file, e.g. 'test.net.xml'
-    """
-    def __init__(self, net_file):
-        net = sumolib.net.readNet(net_file)
-        self.outgoing_edges_dict = {}
-        self.edge_length_dict = {}
-        self.edge_index_dict = {}  #
-        self.edge_vehicle_count = {} #
-        self.edge_list = []
 
-        edge_index = 0
+traci.start([sumo_binary, "-c", "myconfig.sumocfg",
+             "--tripinfo-output", "trips.trips.xml", "--fcd-output", "testTrace.xml"])
 
-        edges = net.getEdges()
 
-        # collect edge information into dictionaries
-        for current_edge in edges:
-            current_edge_id = current_edge.getID()
-
-            # add edge to edge list if it allows passenger vehicles
-            # "passenger" is a SUMO defined vehicle class
-            if current_edge.allows("passenger"):
-                self.edge_list.append(current_edge_id)
-
-            if current_edge_id in self.edge_index_dict.keys():
-                print(current_edge_id + "already exists!")
-            else:
-                self.edge_index_dict[current_edge_id] = edge_index
-                edge_index += 1
-            if current_edge_id in self.outgoing_edges_dict.keys():
-                print(current_edge_id + "already exists!")
-            else:
-                self.outgoing_edges_dict[current_edge_id] = {}
-            if current_edge_id in self.edge_length_dict.keys():
-                print(edge_now_id + "already exists!")
-            else:
-                self.edge_length_dict[current_edge_id] = current_edge.getLength()
-
-            # collect outgoing edges by direction
-            outgoing_edges = current_edge.getOutgoing()
-            for current_outgoing_edge in outgoing_edges:
-                if not current_outgoing_edge.allows("passenger"):
-                    continue
-                connections = current_edge.getConnections(current_outgoing_edge)
-                for connection in connections:
-                    direction = connection.getDirection()
-                    self.outgoing_edges_dict[current_edge_id][direction] = current_outgoing_edge.getId()
+total_time, end_number, deadlines_missed = simulation.Run()
+print(str(total_time) + ' for ' + str(end_number) + ' vehicles.')
+print(str(deadlines_missed +' deadlines missed.'))
