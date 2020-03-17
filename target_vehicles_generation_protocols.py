@@ -74,6 +74,7 @@ class target_vehicles_generator:
         
         self.__current_target_xml_file__ = ""
 
+
     def generate_target_vehicles(self, num_vehicles, target_xml_file, pattern=None):
         """
             param @num_vehicles <int>: the number of target-vehicles desired.
@@ -154,7 +155,8 @@ class target_vehicles_generator:
             
             Function to generate @num_vehicles sets of target-vehicle information,
             stored in @vehicles_info. Each target-vehicle is generated with the start-point
-            @start_point and the destination @destination.
+            @start_point and the destination @destination. If the returned value is None,
+            that means there is no path from @start_point to @destination.
             
             IMPORTANT: This function should only be called in contexts that assign a file
             name (type <str>) to @target_vehicles_generator.__current_target_xml_file__.
@@ -220,6 +222,9 @@ class target_vehicles_generator:
                 
                 ### UNCOMMENT TO DEBUG ###
                 print("No path from", assigned_start_point_lst[i].getID(), "to", destination.getID())
+                
+                assigned_start_point_lst[i] = random.choice(start_point_lst)
+                continue
             
             vehicles_info.append( (current_ID + i, (assigned_start_point_lst[i], destination), valid_pair) )
             i += 1
@@ -272,6 +277,10 @@ class target_vehicles_generator:
                 
                 ### UNCOMMENT TO DEBUG ###
                 print("No path from", assigned_start_point_lst[i].getID(), "to", assigned_destination_lst[i].getID())
+                
+                assigned_start_point_lst[i] = random.choice(start_point_lst)
+                assigned_destination_lst[i] = random.choice(destination_lst);
+                continue
             
             vehicles_info.append( (current_ID + i, (assigned_start_point_lst[i], assigned_destination_lst[i]), valid_pair) )
             i += 1
