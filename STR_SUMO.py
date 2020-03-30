@@ -2,7 +2,6 @@ import os
 import sys
 import optparse
 from xml.dom.minidom import parse, parseString
-from RouteController import *
 from Util import *
 
 if 'SUMO_HOME' in os.environ:
@@ -14,6 +13,7 @@ else:
 from sumolib import checkBinary
 import traci
 import sumolib
+from RouteController import *
 
 """
 SUMO Selfless Traffic Routing (STR) Testbed
@@ -63,12 +63,14 @@ class StrSumo:
                 # iterate through vehicles currently in simulation
                 for vehicle_id in vehicle_ids:
 
-                    self.connection_info.edge_vehicle_count[traci.vehicle.getRoadID(vehicle_id)] += 1
+                    #should not be added because there is no corresponding -1, this makes edge_vehicle_count becomes the total number of vehicles that used to be on this edge.
+                    #self.connection_info.edge_vehicle_count[traci.vehicle.getRoadID(vehicle_id)] += 1
 
                     # handle newly arrived controlled vehicles
                     if vehicle_id not in vehicle_IDs_in_simulation and vehicle_id in self.controlled_vehicles:
                         vehicle_IDs_in_simulation.append(vehicle_id)
-                        traci.vehicle.setColor(vehicle_id, (255, 0, 0)) # set color so we cant visually track controlled vehicles
+                        traci.vehicle.setColor(vehicle_id, (255, 0, 0)) # set color so we can visually track controlled vehicles
+                        self.controlled_vehicles[vehicle_id].start_time = float(step)#Use the detected release time as start time
 
                     if vehicle_id in self.controlled_vehicles.keys():
                         current_edge = traci.vehicle.getRoadID(vehicle_id)
@@ -82,10 +84,8 @@ class StrSumo:
                             self.controlled_vehicles[vehicle_id].current_edge = current_edge
                             self.controlled_vehicles[vehicle_id].current_speed = traci.vehicle.getSpeed(vehicle_id)
                             vehicles_to_direct.append(self.controlled_vehicles[vehicle_id])
-
                 vehicle_decisions_by_id = self.route_controller.make_decisions(vehicles_to_direct, self.connection_info)
-
-                for vehicle_id, decision in vehicle_decisions_by_id:
+                for vehicle_id, decision in vehicle_decisions_by_id.items():
                     if decision not in self.connection_info.outgoing_edges_dict[self.controlled_vehicles[vehicle_id].current_edge]:
                         raise ValueError(f'{decision} does not lead to a valid edge from edge '
                                          f'{self.controlled_vehicles[vehicle_id].current_edge}')
@@ -94,8 +94,8 @@ class StrSumo:
                     target_edge = self.connection_info.outgoing_edges_dict[current_edge_of_vehicle][decision]
                     traci.vehicle.changeTarget(vehicle_id, target_edge)
 
-
                 arrived_at_destination = traci.simulation.getArrivedIDList()
+                
 
                 for vehicle_id in arrived_at_destination:
                     if vehicle_id in self.controlled_vehicles:
@@ -104,14 +104,15 @@ class StrSumo:
                         if step > self.controlled_vehicles[vehicle_id].deadline:
                             deadlines_missed.append(vehicle_id)
 
-
                 traci.simulationStep()
                 step += 1
 
                 if step > MAX_SIMULATION_STEPS:
+                    print('Ending due to timeout.')
                     break
 
         except ValueError as err:
+            print('Exception caught.')
             print(err)
 
 
@@ -125,34 +126,15 @@ class StrSumo:
     def get_controlled_vehicles(self):
         vehicle_list = {}
 
+        #note: make sure the vehicle id is in the form of string, so is the key of the vehicle
+
         #  just generate 1000 dummy vehicles for now...
-        for i in range(1000):
-            new_vehicle = Vehicle(i, "", 0, float('inf'))
-            vehicle_list[i] = new_vehicle
+        for i in range(5):
+            if i==0:
+                continue
+            new_vehicle = Vehicle(str(i), "597602756#3", 0, float('inf'))
+            vehicle_list[str(i)] = new_vehicle
 
         return vehicle_list
 
 
-sumo_binary = checkBinary('sumo-gui')
-
-# parse config file for map file name
-dom = parse("myconfig.sumocfg")
-
-net_file_node = dom.getElementsByTagName('net-file')
-net_file_attr = net_file_node[0].attributes
-
-net_file = net_file_attr['value'].nodeValue
-init_connection_info = ConnectionInfo(net_file)
-
-scheduler = RandomPolicy(init_connection_info)
-simulation = StrSumo(scheduler, init_connection_info)
-
-
-
-traci.start([sumo_binary, "-c", "myconfig.sumocfg",
-             "--tripinfo-output", "trips.trips.xml", "--fcd-output", "testTrace.xml"])
-
-
-total_time, end_number, deadlines_missed = simulation.Run()
-print(str(total_time) + ' for ' + str(end_number) + ' vehicles.')
-print(str(deadlines_missed +' deadlines missed.'))

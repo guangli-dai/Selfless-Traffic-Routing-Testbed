@@ -1,7 +1,13 @@
 from abc import ABC, abstractmethod
 import random
-
+import os
+import sys
 from Util import *
+if 'SUMO_HOME' in os.environ:
+    tools = os.path.join(os.environ['SUMO_HOME'], 'tools')
+    sys.path.append(tools)
+else:
+    sys.exit("No environment variable SUMO_HOME!")
 import traci
 import sumolib
 
@@ -74,15 +80,16 @@ class RandomPolicy(RouteController):
                 Your algo starts here
                 '''
 
-                choice = self.direction_choices[random.randint(0, 6)]
+                choice = self.direction_choices[random.randint(0, 5)] #6 choices available in total
 
                 '''
                 Your algo ends here
                 '''
+                
                 if choice in self.connection_info.outgoing_edges_dict[start_edge].keys():
                     # if target edge is not long enough, continue, but use just calculated target edge as new current edge
                     path_length += \
-                        self.edge_length_dict[self.connection_info.outgoing_edges_dict[start_edge][choice]]
+                        self.connection_info.edge_length_dict[self.connection_info.outgoing_edges_dict[start_edge][choice]]
 
                     # make sure vehicle won't exit TRACI prematurely by ensuring it doesn't
                     # reach the end of its TRACI destination edge before we catch it again.

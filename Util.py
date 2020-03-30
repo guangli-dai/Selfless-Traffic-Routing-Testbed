@@ -1,8 +1,22 @@
+import os
+import sys
+if 'SUMO_HOME' in os.environ:
+    tools = os.path.join(os.environ['SUMO_HOME'], 'tools')
+    sys.path.append(tools)
+else:
+    sys.exit("No environment variable SUMO_HOME!")
 from sumolib import net
 import sumolib
 
 class Vehicle:
     def __init__(self, vehicle_id, destination, start_time, deadline):
+        '''
+        Args:
+                vehicle_id:         type: string. The id of the vehicle.
+                destination:        type: string. The id of the edge where the vehicle targets.
+                start_time:         type: float. The step # when the vehicle is released. This value will be updated by STR_SUMO.
+                deadline:           type: float. The deadline for this vehicle to reach the end of the target edge.
+        '''
         self.vehicle_id = vehicle_id
         self.destination = destination
         self.start_time = start_time
