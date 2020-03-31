@@ -47,7 +47,7 @@ class StrSumo:
         """
         total_time = 0
         end_number = 0
-        deadlines_missed = 0
+        deadlines_missed = []
 
         step = 0
         vehicles_to_direct = [] #  the batch of controlled vehicles passed to make_decisions()
@@ -85,17 +85,17 @@ class StrSumo:
                             self.controlled_vehicles[vehicle_id].current_speed = traci.vehicle.getSpeed(vehicle_id)
                             vehicles_to_direct.append(self.controlled_vehicles[vehicle_id])
                 vehicle_decisions_by_id = self.route_controller.make_decisions(vehicles_to_direct, self.connection_info)
-                for vehicle_id, decision in vehicle_decisions_by_id.items():
-                    if decision not in self.connection_info.outgoing_edges_dict[self.controlled_vehicles[vehicle_id].current_edge]:
-                        raise ValueError(f'{decision} does not lead to a valid edge from edge '
-                                         f'{self.controlled_vehicles[vehicle_id].current_edge}')
-
-                    current_edge_of_vehicle = self.controlled_vehicles[vehicle_id].current_edge
-                    target_edge = self.connection_info.outgoing_edges_dict[current_edge_of_vehicle][decision]
-                    traci.vehicle.changeTarget(vehicle_id, target_edge)
+                for vehicle_id, local_target_edge in vehicle_decisions_by_id.items():
+                    # if decision not in self.connection_info.outgoing_edges_dict[self.controlled_vehicles[vehicle_id].current_edge]:
+                    #     raise ValueError(f'{decision} does not lead to a valid edge from edge '
+                    #                      f'{self.controlled_vehicles[vehicle_id].current_edge}')
+                    #
+                    # current_edge_of_vehicle = self.controlled_vehicles[vehicle_id].current_edge
+                    # target_edge = self.connection_info.outgoing_edges_dict[current_edge_of_vehicle][decision]
+                    if vehicle_id in traci.vehicle.getIDList():
+                        traci.vehicle.changeTarget(vehicle_id, local_target_edge)
 
                 arrived_at_destination = traci.simulation.getArrivedIDList()
-                
 
                 for vehicle_id in arrived_at_destination:
                     if vehicle_id in self.controlled_vehicles:
@@ -115,8 +115,9 @@ class StrSumo:
             print('Exception caught.')
             print(err)
 
+        num_deadlines_missed = len(deadlines_missed)
 
-        return total_time, end_number, deadlines_missed
+        return total_time, end_number, num_deadlines_missed
 
     def get_edge_vehicle_counts(self):
         for edge in self.connection_info.edge_list:
@@ -128,13 +129,11 @@ class StrSumo:
 
         #note: make sure the vehicle id is in the form of string, so is the key of the vehicle
 
-        #  just generate 1000 dummy vehicles for now...
+        #  just generate 4 dummy vehicles for now...
         for i in range(5):
-            if i==0:
+            if i == 0:
                 continue
             new_vehicle = Vehicle(str(i), "597602756#3", 0, float('inf'))
             vehicle_list[str(i)] = new_vehicle
 
         return vehicle_list
-
-

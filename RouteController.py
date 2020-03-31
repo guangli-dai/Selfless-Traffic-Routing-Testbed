@@ -48,6 +48,7 @@ class RouteController(ABC):
     def make_decisions(self, vehicles, connection_info):
         pass
 
+
 class RandomPolicy(RouteController):
     """
     Example class for a custom scheduling algorithm.
@@ -57,49 +58,86 @@ class RandomPolicy(RouteController):
     def __init__(self, connection_info):
         super().__init__(connection_info)
 
+    def compute_local_target(self, decision_list, vehicle):
+        current_target_edge = vehicle.current_edge
+
+        try:
+            path_length = 0
+            i = 0
+
+
+            while path_length <= vehicle.current_speed:
+                if i >= len(decision_list):
+                    raise UserWarning(
+                        "not enough decisions provided to compute valid local target. TRACI will remove vehicle."
+                    )
+
+                choice = decision_list[i]
+                current_target_edge = self.connection_info.outgoing_edges_dict[current_target_edge][choice]
+                path_length += self.connection_info.edge_length_dict[current_target_edge]
+
+                if i > 0:
+                    if decision_list[i - 1] == decision_list[i] and decision_list[i] == 't':
+                        # stuck in a turnaround loop, let TRACI remove vehicle
+                        return current_target_edge
+
+                i += 1
+
+        except UserWarning as warning:
+            print(warning)
+
+        return current_target_edge
+
     def make_decisions(self, vehicles, connection_info):
         """
         A custom scheduling algorithm can be written in between the 'Your algo...' comments.
-        For each car in the vehicles batch, the wrapper code will loop your algorithm until:
-            1) The decision is a valid one, AND
-            2) The targeted edge is far enough away that TRACI will not take
-               the vehicle out of the simulation before the vehicle has reached its true destination.
+        -For each car in the vehicle batch, your algorithm should provide a working list of future decisions.
+        -This list of decisions is sent to a function that returns the closest viable target edge
+          reachable by the decisions - it is not the case that all decisions will always be consumed.
+          As soon as there is enough distance between the current edge and the target edge, the compute_target_edge
+          function will return.
+        -The closest viable edge may be thought of a local target that is used by TRACI to control vehicles
+        -The closest viable edge will always be far enough away to ensure that the vehicle is not removed
+          from the simulation by TRACI
+
         :param vehicles: list of vehicles to make routing decisions for
         :param connection_info: object containing network information
-        :return: decisions: {vehicle_id, decision}, where decision is one of "s", "l", etc (see constants at top of file)
+        :return: local_targets: {vehicle_id, target_edge}, where target_edge is a local target to send to TRACI
         """
 
         # TODO make sure that the algorithm favors true destination edge if its in range
-        decisions = {}
+        local_targets = {}
         for vehicle in vehicles:
             start_edge = vehicle.current_edge
-            path_length = 0
 
-            while True:
-                '''
-                Your algo starts here
-                '''
+            '''
+            Your algo starts here
+            '''
+            decision_list = []
 
-                choice = self.direction_choices[random.randint(0, 5)] #6 choices available in total
+            i = 0
+            while i < 10: # We will make ten decisions in advanced
+                choice = self.direction_choices[random.randint(0, 5)] # 6 choices available in total
 
-                '''
-                Your algo ends here
-                '''
-                
-                if choice in self.connection_info.outgoing_edges_dict[start_edge].keys():
-                    # if target edge is not long enough, continue, but use just calculated target edge as new current edge
-                    path_length += \
-                        self.connection_info.edge_length_dict[self.connection_info.outgoing_edges_dict[start_edge][choice]]
-
-                    # make sure vehicle won't exit TRACI prematurely by ensuring it doesn't
-                    # reach the end of its TRACI destination edge before we catch it again.
-                    # TODO how much time passes per time step? current_speed is m/s, so the below only works if time step is 1s
-                    if path_length <= vehicle.current_speed:
-                        start_edge = self.connection_info.outgoing_edges_dict[start_edge][choice]
-                        continue
-
+                # dead end
+                if len(self.connection_info.outgoing_edges_dict[start_edge].keys()) == 0:
                     break
 
-            decisions[vehicle.vehicle_id] = choice
+                # make sure to check if it's a valid edge
+                if choice in self.connection_info.outgoing_edges_dict[start_edge].keys():
+                    decision_list.append(choice)
+                    start_edge = self.connection_info.outgoing_edges_dict[start_edge][choice]
 
-        return decisions
+                    if i > 0:
+                        if decision_list[i-1] == decision_list[i] and decision_list[i] == 't':
+                            # stuck in a turnaround loop, let TRACI remove vehicle
+                            break
+
+                    i += 1
+
+            '''
+            Your algo ends here
+            '''
+            local_targets[vehicle.vehicle_id] = self.compute_local_target(decision_list, vehicle)
+
+        return local_targets
