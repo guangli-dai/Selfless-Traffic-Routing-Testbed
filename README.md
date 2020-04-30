@@ -9,13 +9,13 @@
 
 **Route Map**
 
-Phase 1 (by March 15th):
+Phase 1:
 
 * Randomly generate start points and end points.
 * Use TraCI to connect scheduling algorithms and SUMO.
 * Combine both parts for tests.
 
-Phase 2 (by May 1st):
+Phase 2:
 
 * Choose and implement existing selfish traffic scheduling algorithms.
 * Design and implement heuristic selfless traffic scheduling algorithms.
