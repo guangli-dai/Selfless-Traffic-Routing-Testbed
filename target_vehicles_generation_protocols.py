@@ -10,7 +10,9 @@
 import random
 import os
 import sys
-import xml.dom.minidom
+import xml.dom.minidom 
+import Util
+import network_map_data_structures
 
 
 # CHECK VERSION INFORMATION AND SET UP VERSION REFERENCE VARIABLES:
@@ -70,8 +72,9 @@ class target_vehicles_generator:
         self.out_dict = None
         self.index_dict = None
         self.edge_list = None
-        self.net = None
-        
+        self.net = network_map_data_structures.getNetInfo("test.net.xml")
+        [self.length_dict, self.out_dict, self.index_dict, self.edge_list] = network_map_data_structures.getEdgesInfo(self.net)
+
         self.__current_target_xml_file__ = ""
 
 
@@ -111,7 +114,9 @@ class target_vehicles_generator:
             if type(pattern[0]) is sumolib.net.edge.Edge:
                 if type(pattern[1]) is sumolib.net.edge.Edge:
                     # -- CASE 1. --
-                    vehicles_info = self.generate_with_one_start_one_dest(num_vehicles, pattern[0], pattern[1])
+                    vehicles_info = None
+                    while vehicles_info is None:
+                        vehicles_info = self.generate_with_one_start_one_dest(num_vehicles, pattern[0], pattern[1])
                 else:
                     __error_message__ = "Invalid pattern for generating random vehicles: The 1st element of " + str(pattern) + " is not an instance of sumolib.net.edge.Edge!"
             elif type(pattern[0]) is list:
@@ -279,7 +284,7 @@ class target_vehicles_generator:
                 print("No path from", assigned_start_point_lst[i].getID(), "to", assigned_destination_lst[i].getID())
                 
                 assigned_start_point_lst[i] = random.choice(start_point_lst)
-                assigned_destination_lst[i] = random.choice(destination_lst);
+                assigned_destination_lst[i] = random.choice(destination_lst)
                 continue
             
             vehicles_info.append( (current_ID + i, (assigned_start_point_lst[i], assigned_destination_lst[i]), valid_pair) )
@@ -319,12 +324,10 @@ class target_vehicles_generator:
             if validate_path(self.net, pair[0], pair[1]):
                 vehicles_info.append( (current_ID + i, pair, True) )
                 i += 1
-            else:
+            ### UNCOMMENT TO DEBUG ###
+            #else:
+                #print("No path from", pair[0].getID(), "to", pair[1].getID())
                 
-                ### UNCOMMENT TO DEBUG ###
-                print("No path from", pair[0].getID(), "to", pair[1].getID())
-                
-        # TODO: The tuple elements for the information of a vehicle are to be determined."
         return vehicles_info
     
     
@@ -360,6 +363,131 @@ class target_vehicles_generator:
         
         target_vehicles_generator.target_vehicles_output_dict[target_xml_file] = 0
 
+    def generate_vehicles(self, num_target_vehicles, num_random_vehicles, pattern, target_xml_file, net_xml_file):
+        """
+            param @num_target_vehicles <int>: The number of target vehicles.
+            param @num_random_vehicles <int>: The number of uncontrolled vehicles.
+            param @pattern <tuple>: one of four possible patterns. FORMAT:
+            -- CASES BEGIN --
+                #1. one start point, one destination for all target vehicles
+                #2. ranged start point, one destination for all target vehicles
+                #3. ranged start points, ranged destination for all target vehicles
+            -- CASES ENDS --
+
+            Returns the list of target vehicles if succeeds.
+            Returns None if the generation fails with error infromation output to the console.
+            The result will be written into the target_xml_file.
+            There is no guaratnee on the contents in target_xml_file if the generation fails, i.e., returns None
+        """
+        #set the start time as 0 (by default) and the end time as 50
+        #calculate the density of vehicles accordingly
+        latest_release_time = 50.0 #a constant number for the latest release time of all vehicles
+        num_random_vehicles *= 2 # this is done to compensate the loss when generating using scripts. Need to solve this later.
+        density =  latest_release_time / float(num_random_vehicles)
+        density = int(density * 100)/100.0
+        #copy the file randomTrips.py to the current directory
+        command_str = "cp $SUMO_HOME/tools/randomTrips.py ./"
+        if os.system(command_str) != 0:
+            print("ERROR: Failed to copy randomTrips.py to current directory.")
+            return None
+        #invoke randomTrips.py
+        command_str = "./randomTrips.py -n "+net_xml_file+" -e 50 -p "+str(density) +" -r "+target_xml_file 
+        if os.system(command_str) != 0:
+            print("ERROR: Failed to invoke randomTrips.py.")
+            return None
+        #delete randomTrips.py
+        command_str = "rm ./randomTrips.py"
+        if os.system(command_str) != 0:
+            print("ERROR: Failed to remove randomTrips.py.")
+            return None
+        #insert the generated vehicles into the xml file
+        #use id to find the vehicles and modify their information directly
+        result_dict = None
+        if pattern==1:
+            param_start = random.choice(self.edge_list)
+            param_dest = random.choice(self.edge_list)
+            while not validate_path(self.net, param_start, param_dest):
+                param_start = random.choice(self.edge_list)
+                param_dest = random.choice(self.edge_list)
+                ### UNCOMMENT TO DEBUG ###
+                #print("DEBUG: pattern 1 regenerating.")
+            result_dict = self.generate_target_vehicles(num_target_vehicles, target_xml_file, (param_start, param_dest) )
+        elif pattern==2:
+            param_start = __random_choices_with_rp__(self.edge_list, num_target_vehicles*2)
+            param_dest = random.choice(self.edge_list)
+            #all pairs must be valid
+            while not validate_path_start_points(self.net, param_start, param_dest):
+                param_start = __random_choices_with_rp__(self.edge_list, num_target_vehicles*2)
+                param_dest = random.choice(self.edge_list)
+                ### UNCOMMENT TO DEBUG ###
+                #print("DEBUG: pattern 2 regenerating.")
+            result_dict = self.generate_target_vehicles(num_target_vehicles, target_xml_file, (param_start, param_dest) )
+        elif pattern==3:
+            param_start = __random_choices_with_rp__(self.edge_list, num_target_vehicles*2)
+            param_dest = __random_choices_with_rp__(self.edge_list, num_target_vehicles*2)
+            #at least one group of start points and one destination is valid towards each other
+            while not validate_path_starts_ends(self.net, param_start, param_dest):
+                param_start = __random_choices_with_rp__(self.edge_list, num_target_vehicles*2)
+                param_dest = __random_choices_with_rp__(self.edge_list, num_target_vehicles*2)
+                ### UNCOMMENT TO DEBUG ###
+                #print("DEBUG: pattern 3 regenerating.")
+            result_dict = self.generate_target_vehicles(num_target_vehicles, target_xml_file, (param_start, param_dest) )
+        else:
+            print("ERROR: Unknown pattern type.")
+            return None
+        error_message = result_dict[self.__ERROR_MESSAGE__]
+        result_lst = result_dict[self.VEHICLES_INFO]
+        if error_message != None:
+            print(error_message)
+            return None
+        #put the vehicle information into a list of Vehicle objects
+        vehicle_list = []
+        release_time = 0
+        release_period = latest_release_time/float(num_target_vehicles)
+
+        #read the xml file
+        doc = xml.dom.minidom.parse(target_xml_file)
+        root = doc.documentElement
+        vs = root.getElementsByTagName("vehicle")
+        index = 0
+        print(len(vs))
+        id_now = int(vs.item(len(vs) - 1).getAttribute('id')) + 1
+        #deadline set arbitrarily between a certain range
+        for r in result_lst:
+            #find the vehicle slot based on the depart time (departure time must be sorted in xml)
+            for i in range(index, len(vs)):
+                if float(vs.item(i).getAttribute('depart')) <= release_time:
+                    index = i
+                else:
+                    break
+            
+            #insert the vehicle into the xml file
+            #print(index)
+            temp_v = doc.createElement('vehicle')
+            temp_v.setAttribute('depart', str(release_time))
+            temp_v.setAttribute('id', str(id_now))
+            temp_r = doc.createElement('route')
+            temp_r.setAttribute('edges', r[1][0].getID()) #set the start edge as the route
+            temp_v.appendChild(temp_r)
+            if index == len(vs) - 1:
+                root.appendChild(temp_v)
+            else:
+                root.insertBefore(temp_v, vs[index+1])
+                #root.appendChild(temp_v)
+            #append the vehicle to the final vehicle list
+            ddl_now = random.randint(500,1000)#randomly set ddl in a range for now
+            v_now = Util.Vehicle(id_now, r[1][1].getID(), release_time, ddl_now)
+            vehicle_list.append(v_now)
+            release_time += release_period
+            id_now += 1
+            vs = root.getElementsByTagName("vehicle")
+        #write the vehicle information into the xml file
+        with open(target_xml_file, 'w') as f:
+            f.write(doc.toprettyxml())
+            f.flush()
+            f.close
+        return vehicle_list
+
 
     
 def validate_path(net, start_point, destination):
@@ -372,12 +500,44 @@ def validate_path(net, start_point, destination):
         using the shortest path algorithm offered by @net; returns True if such a path
         exists, and False otherwise.
         
-        TODO: Implement the validation using a shortest path list (stored as a list of
-              distances) for all pairs of edges, if the map is medium in size.
     """
     shortestPath = net.getShortestPath(start_point, destination)
     return shortestPath[0] != None
     
+def validate_path_start_points(net, start_points, destination):
+    """
+        param @net <sumolib.net.Net>: parameter that stores the information of a map.
+        param @start_point <list of sumolib.net.edge.Edge>: a list of start-points on the map from @net.
+        param @destination <sumolib.net.edge.Edge>: a destination on the map from @net.
+        
+        Function to validate the existence of a path from @start_point to @destination,
+        using the shortest path algorithm offered by @net; returns True if such a path
+        exists, and False otherwise.
+    """
+    num = 0
+    for s in start_points:
+        shortest_path = net.getShortestPath(s, destination)
+        if shortest_path[0]==None:
+            return False
+        num += 1
+        if num >= len(start_points)/2:
+            return True
+    return True
+
+def validate_path_starts_ends(net, start_points, destinations):
+    """
+        param @net <sumolib.net.Net>: parameter that stores the information of a map.
+        param @start_point <list of sumolib.net.edge.Edge>: a list of start-points on the map from @net.
+        param @destination <list of sumolib.net.edge.Edge>: a destination on the map from @net.
+        
+        Function to validate the existence of a path from @start_point to @destination,
+        using the shortest path algorithm offered by @net; returns True if such a path
+        exists, and False otherwise.
+    """
+    for d in destinations:
+        if validate_path_start_points(net, start_points, d):
+            return True
+    return False
     
 # Auxiliary Functions:
 def __random_choices_with_rp__(lst, k=1):

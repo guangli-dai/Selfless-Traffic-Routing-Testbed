@@ -2,6 +2,8 @@
     File for unit-testing the function
         @target_vehicles_generator.generate_target_vehicles
     from the file "target_vehicles_generation_protocols.py".
+    File needed for the test: test.net.xml
+    File that will be generated during the unit test includes test.pattern1*.xml, test.pattern2*.xml, test.pattern3*.xml
 """
 import random
 import network_map_data_structures
@@ -24,7 +26,7 @@ generator.net = network_map_data_structures.getNetInfo("test.net.xml")
 [generator.length_dict, generator.out_dict, generator.index_dict, generator.edge_list] = network_map_data_structures.getEdgesInfo(generator.net)
 
 
-
+'''
 # Start unit-testing:
 print("************** generate_with_one_start_one_dest ******************\n")
 param_start = random.choice(generator.edge_list)
@@ -42,7 +44,7 @@ else:
     print_test_failed()
 print("\n")
 
-
+#this unit test may cause indefinite loop or even dead loop if the start points and the destination are not connected!
 print("************** generate_with_ranged_starts_one_dest ******************\n")
 param_start = TVGProt.__random_choices_with_rp__(generator.edge_list, 30)
 param_dest = random.choice(generator.edge_list)
@@ -58,7 +60,7 @@ else:
     print_test_failed()
 print("\n")
 
-
+#this unit test may cause indefinite loop or even dead loop if all pairs of start point and the destination are not connected!
 print("************** generate_with_ranged_starts_ranged_dests ******************\n")
 param_start = TVGProt.__random_choices_with_rp__(generator.edge_list, 30)
 param_dest = TVGProt.__random_choices_with_rp__(generator.edge_list, 30)
@@ -172,3 +174,34 @@ else:
         # No vehicle ID should be produced.
         print_test_failed()
 print("\n")
+'''
+
+print("************** generate random vehicles' xml file one start one end point ******************\n")
+vehicle_list = generator.generate_vehicles(10,100, 1, "test.pattern1.xml", "test.net.xml")
+if vehicle_list is not None:
+    for v in vehicle_list:
+        print(str(v.vehicle_id) + ':'+v.destination+' from '+str(v.start_time)+' to '+str(v.deadline))
+    print_test_passed()
+else:
+    print_test_failed()
+print ("\n")
+
+print("************** generate random vehicles' xml file ranged start one end point ******************\n")
+vehicle_list = generator.generate_vehicles(10,100, 2, "test.pattern2.xml", "test.net.xml")
+if vehicle_list is not None:
+    for v in vehicle_list:
+        print(str(v.vehicle_id) + ':'+v.destination+' from '+str(v.start_time)+' to '+str(v.deadline))
+    print_test_passed()
+else:
+    print_test_failed()
+print ("\n")
+
+print("************** generate random vehicles' xml file ranged start ranged end point ******************\n")
+vehicle_list = generator.generate_vehicles(10,100, 3, "test.pattern3.xml", "test.net.xml")
+if vehicle_list is not None:
+    for v in vehicle_list:
+        print(str(v.vehicle_id) + ':'+v.destination+' from '+str(v.start_time)+' to '+str(v.deadline))
+    print_test_passed()
+else:
+    print_test_failed()
+print ("\n")
