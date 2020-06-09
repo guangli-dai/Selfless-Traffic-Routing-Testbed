@@ -3,6 +3,7 @@ import sys
 import optparse
 from xml.dom.minidom import parse, parseString
 from Util import *
+from target_vehicles_generation_protocols import *
 
 if 'SUMO_HOME' in os.environ:
     tools = os.path.join(os.environ['SUMO_HOME'], 'tools')
@@ -10,7 +11,6 @@ if 'SUMO_HOME' in os.environ:
 else:
     sys.exit("No environment variable SUMO_HOME!")
 
-from sumolib import checkBinary
 import traci
 import sumolib
 from RouteController import *
@@ -19,8 +19,9 @@ from RouteController import *
 SUMO Selfless Traffic Routing (STR) Testbed
 """
 
-MAX_SIMULATION_STEPS = 5000
+MAX_SIMULATION_STEPS = 2000
 
+# TODO: decide which file to put these in. Right now they're also defined in RouteController!!
 STRAIGHT = "s"
 TURN_AROUND = "t"
 LEFT = "l"
@@ -29,14 +30,15 @@ SLIGHT_LEFT = "L"
 SLIGHT_RIGHT = "R"
 
 class StrSumo:
-    def __init__(self, route_controller, connection_info):
+    def __init__(self, route_controller, connection_info, route_filename):
         """
         :param route_controller: object that implements the scheduling algorithm for controlled vehicles
         """
         self.direction_choices = [STRAIGHT, TURN_AROUND, SLIGHT_RIGHT, RIGHT, SLIGHT_LEFT, LEFT]
         self.connection_info = connection_info
         self.route_controller = route_controller
-        self.controlled_vehicles = self.get_controlled_vehicles() # dictionary of Vehicles by id
+        self.controlled_vehicles = self.get_controlled_vehicles(route_filename)  # dictionary of Vehicles by id
+
 
     def run(self):
         """
@@ -123,17 +125,15 @@ class StrSumo:
         for edge in self.connection_info.edge_list:
             self.connection_info.edge_vehicle_count[edge] = traci.edge.getLastStepVehicleNumber(edge)
 
-    #  This is a dummy method for getting vehicles; the vehicle generation code will provide the list of controlled vehicles in practice
-    def get_controlled_vehicles(self):
-        vehicle_list = {}
+    # use vehicle generation protocols to generate vehicle list
+    def get_controlled_vehicles(self, route_filename, num_controlled_vehicles=10, num_uncontrolled_vehicles=20):
+        vehicle_dict = {}
+        generator = target_vehicles_generator()
 
-        #note: make sure the vehicle id is in the form of string, so is the key of the vehicle
+        # list of target vehicles is returned by generate_vehicles
+        vehicle_list = generator.generate_vehicles(num_controlled_vehicles, num_uncontrolled_vehicles, 3, route_filename, self.connection_info.net_filename)
 
-        #  just generate 4 dummy vehicles for now...
-        for i in range(5):
-            if i == 0:
-                continue
-            new_vehicle = Vehicle(str(i), "597602756#3", 0, float('inf'))
-            vehicle_list[str(i)] = new_vehicle
+        for vehicle in vehicle_list:
+            vehicle_dict[str(vehicle.vehicle_id)] = vehicle
 
-        return vehicle_list
+        return vehicle_dict

@@ -40,23 +40,9 @@ class RouteController(ABC):
                             - edge_list [edge_id]
 
     """
-    def __init__(self, connection_info):
+    def __init__(self, connection_info: ConnectionInfo):
         self.connection_info = connection_info
         self.direction_choices = [STRAIGHT, TURN_AROUND,  SLIGHT_RIGHT, RIGHT, SLIGHT_LEFT, LEFT]
-
-    @abstractmethod
-    def make_decisions(self, vehicles, connection_info):
-        pass
-
-
-class RandomPolicy(RouteController):
-    """
-    Example class for a custom scheduling algorithm.
-    Utilizes a random decision policy until vehicle destination is within reach,
-    then targets the vehicle destination.
-    """
-    def __init__(self, connection_info):
-        super().__init__(connection_info)
 
     def compute_local_target(self, decision_list, vehicle):
         current_target_edge = vehicle.current_edge
@@ -64,7 +50,6 @@ class RandomPolicy(RouteController):
         try:
             path_length = 0
             i = 0
-
 
             while path_length <= vehicle.current_speed:
                 if i >= len(decision_list):
@@ -88,24 +73,40 @@ class RandomPolicy(RouteController):
 
         return current_target_edge
 
+
+    @abstractmethod
+    def make_decisions(self, vehicles, connection_info):
+        pass
+
+
+class RandomPolicy(RouteController):
+    """
+    Example class for a custom scheduling algorithm.
+    Utilizes a random decision policy until vehicle destination is within reach,
+    then targets the vehicle destination.
+    """
+    def __init__(self, connection_info):
+        super().__init__(connection_info)
+
     def make_decisions(self, vehicles, connection_info):
         """
         A custom scheduling algorithm can be written in between the 'Your algo...' comments.
-        -For each car in the vehicle batch, your algorithm should provide a working list of future decisions.
-        -This list of decisions is sent to a function that returns the closest viable target edge
+        -For each car in the vehicle batch, your algorithm should provide a list of future decisions.
+        -Sometimes short paths result in the vehicle reaching its local TRACI destination before reaching its
+         true global destination. In order to counteract this, ask for a list of decisions rather than just one.
+        -This list of decisions is sent to a function that returns the 'closest viable target' edge
           reachable by the decisions - it is not the case that all decisions will always be consumed.
           As soon as there is enough distance between the current edge and the target edge, the compute_target_edge
           function will return.
-        -The closest viable edge may be thought of a local target that is used by TRACI to control vehicles
-        -The closest viable edge will always be far enough away to ensure that the vehicle is not removed
-          from the simulation by TRACI
+        -The 'closest viable edge' is a local target that is used by TRACI to control vehicles
+        -The closest viable edge should always be far enough away to ensure that the vehicle is not removed
+          from the simulation by TRACI before the vehicle reaches its true destination
 
         :param vehicles: list of vehicles to make routing decisions for
         :param connection_info: object containing network information
         :return: local_targets: {vehicle_id, target_edge}, where target_edge is a local target to send to TRACI
         """
 
-        # TODO make sure that the algorithm favors true destination edge if its in range
         local_targets = {}
         for vehicle in vehicles:
             start_edge = vehicle.current_edge
@@ -116,8 +117,8 @@ class RandomPolicy(RouteController):
             decision_list = []
 
             i = 0
-            while i < 10: # We will make ten decisions in advanced
-                choice = self.direction_choices[random.randint(0, 5)] # 6 choices available in total
+            while i < 10:  # choose the number of decisions to make in advanced; depends on the algorithm and network
+                choice = self.direction_choices[random.randint(0, 5)]  # 6 choices available in total
 
                 # dead end
                 if len(self.connection_info.outgoing_edges_dict[start_edge].keys()) == 0:

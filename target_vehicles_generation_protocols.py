@@ -97,7 +97,7 @@ class target_vehicles_generator:
             number, output xml file, generation pattern specified by the input
             parameters. If the value passed to pattern is None, or is not specified,
             the function will interpret it as a generation pattern of @num_vehicles pairs
-            of random start-points and random destionations from the whole of
+            of random start-points and random destinations from the whole of
             @target_vehicles_generator.edge_list. The start point(s) are written into
             the output xml file, and the list of the generated vehicles' information
             (in tuples) is returned.

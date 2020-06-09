@@ -177,7 +177,7 @@ print("\n")
 '''
 
 print("************** generate random vehicles' xml file one start one end point ******************\n")
-vehicle_list = generator.generate_vehicles(10,100, 1, "test.pattern1.xml", "test.net.xml")
+vehicle_list = generator.generate_vehicles(10, 100, 1, "test.pattern1.xml", "test.net.xml")
 if vehicle_list is not None:
     for v in vehicle_list:
         print(str(v.vehicle_id) + ':'+v.destination+' from '+str(v.start_time)+' to '+str(v.deadline))
@@ -187,7 +187,7 @@ else:
 print ("\n")
 
 print("************** generate random vehicles' xml file ranged start one end point ******************\n")
-vehicle_list = generator.generate_vehicles(10,100, 2, "test.pattern2.xml", "test.net.xml")
+vehicle_list = generator.generate_vehicles(10, 100, 2, "test.pattern2.xml", "test.net.xml")
 if vehicle_list is not None:
     for v in vehicle_list:
         print(str(v.vehicle_id) + ':'+v.destination+' from '+str(v.start_time)+' to '+str(v.deadline))
@@ -197,7 +197,7 @@ else:
 print ("\n")
 
 print("************** generate random vehicles' xml file ranged start ranged end point ******************\n")
-vehicle_list = generator.generate_vehicles(10,100, 3, "test.pattern3.xml", "test.net.xml")
+vehicle_list = generator.generate_vehicles(10, 100, 3, "test.pattern3.xml", "test.net.xml")
 if vehicle_list is not None:
     for v in vehicle_list:
         print(str(v.vehicle_id) + ':'+v.destination+' from '+str(v.start_time)+' to '+str(v.deadline))

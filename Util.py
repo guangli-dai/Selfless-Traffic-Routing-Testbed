@@ -10,13 +10,13 @@ import sumolib
 
 class Vehicle:
     def __init__(self, vehicle_id, destination, start_time, deadline):
-        '''
+        """
         Args:
                 vehicle_id:         type: string. The id of the vehicle.
                 destination:        type: string. The id of the edge where the vehicle targets.
                 start_time:         type: float. The step # when the vehicle is released. This value will be updated by STR_SUMO.
                 deadline:           type: float. The deadline for this vehicle to reach the end of the target edge.
-        '''
+        """
         self.vehicle_id = vehicle_id
         self.destination = destination
         self.start_time = start_time
@@ -38,6 +38,7 @@ class ConnectionInfo:
     :param net_file: file name of a SUMO network file, e.g. 'test.net.xml'
     """
     def __init__(self, net_file):
+        self.net_filename = net_file
         net = sumolib.net.readNet(net_file)
         self.outgoing_edges_dict = {}
         self.edge_length_dict = {}
@@ -68,7 +69,7 @@ class ConnectionInfo:
             else:
                 self.outgoing_edges_dict[current_edge_id] = {}
             if current_edge_id in self.edge_length_dict.keys():
-                print(edge_now_id + "already exists!")
+                print(current_edge_id + "already exists!")
             else:
                 self.edge_length_dict[current_edge_id] = current_edge.getLength()
 
