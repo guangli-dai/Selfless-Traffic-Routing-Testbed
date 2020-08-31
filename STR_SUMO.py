@@ -38,7 +38,7 @@ class StrSumo:
         self.connection_info = connection_info
         self.route_controller = route_controller
         self.controlled_vehicles = self.get_controlled_vehicles(route_filename)  # dictionary of Vehicles by id
-
+        #print(self.controlled_vehicles)
 
     def run(self):
         """

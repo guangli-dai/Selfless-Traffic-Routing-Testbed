@@ -386,12 +386,12 @@ class target_vehicles_generator:
         density =  latest_release_time / float(num_random_vehicles)
         density = int(density * 100)/100.0
         #copy the file randomTrips.py to the current directory
-        command_str = "cp $SUMO_HOME/tools/randomTrips.py ./"
+        command_str = "cp %SUMO_HOME%/tools/randomTrips.py ./"
         if os.system(command_str) != 0:
             print("ERROR: Failed to copy randomTrips.py to current directory.")
             return None
         #invoke randomTrips.py
-        command_str = "./randomTrips.py -n "+net_xml_file+" -e 50 -p "+str(density) +" -r "+target_xml_file 
+        command_str = "python randomTrips.py -n "+net_xml_file+" -e 50 -p "+str(density) +" -r "+target_xml_file
         if os.system(command_str) != 0:
             print("ERROR: Failed to invoke randomTrips.py.")
             return None
