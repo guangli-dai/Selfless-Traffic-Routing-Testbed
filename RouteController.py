@@ -46,7 +46,6 @@ class RouteController(ABC):
 
     def compute_local_target(self, decision_list, vehicle):
         current_target_edge = vehicle.current_edge
-
         try:
             path_length = 0
             i = 0

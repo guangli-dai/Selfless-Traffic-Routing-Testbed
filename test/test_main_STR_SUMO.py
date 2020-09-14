@@ -8,7 +8,7 @@ import sys
 from xml.dom.minidom import parse, parseString
 from Util import *
 from RouteController import *
-
+from DijkstraController import DijkstraPolicy
 from QLearningController import QLearningPolicy
 
 if 'SUMO_HOME' in os.environ:
@@ -21,7 +21,7 @@ from sumolib import checkBinary
 import traci
 
 sumo_binary = checkBinary('sumo-gui')
-#sumo_binary = checkBinary('sumo')
+# sumo_binary = checkBinary('sumo')
 
 # parse config file for map file name
 dom = parse("myconfig.sumocfg")
@@ -50,15 +50,23 @@ def test_q_learning():
     print("************")
 
 
+def test_dijkstra_policy():
+    print("Testing Dijkstra's Algorithm Route Controller")
+    scheduler = DijkstraPolicy(init_connection_info)
+    run_simulation(scheduler)
+    print("TEST PASSED")
+    print("***********")
+
+
 def run_simulation(scheduler):
     simulation = StrSumo(scheduler, init_connection_info, route_file)
 
     traci.start([sumo_binary, "-c", "myconfig.sumocfg",
                  "--tripinfo-output", "trips.trips.xml", "--fcd-output", "testTrace.xml"])
 
-
     total_time, end_number, deadlines_missed = simulation.run()
     print(str(total_time) + ' for ' + str(end_number) + ' vehicles.')
-    print(str(deadlines_missed) +' deadlines missed.')
+    print(str(deadlines_missed) + ' deadlines missed.')
 
-test_q_learning()
+
+test_dijkstra_policy()

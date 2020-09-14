@@ -391,7 +391,7 @@ class target_vehicles_generator:
             print("ERROR: Failed to copy randomTrips.py to current directory.")
             return None
         #invoke randomTrips.py
-        command_str = "./randomTrips.py -n "+net_xml_file+" -e 50 -p "+str(density) +" -r "+target_xml_file 
+        command_str = "./randomTrips.py -n "+net_xml_file+" -e 50 -p "+str(density) +" -r "+target_xml_file
         if os.system(command_str) != 0:
             print("ERROR: Failed to invoke randomTrips.py.")
             return None
