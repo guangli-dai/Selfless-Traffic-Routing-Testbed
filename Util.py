@@ -23,6 +23,7 @@ class Vehicle:
         self.deadline = deadline
         self.current_edge = ""
         self.current_speed = 0.0
+        self.local_destination = ""
 
 
 class ConnectionInfo:
