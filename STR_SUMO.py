@@ -61,12 +61,15 @@ class StrSumo:
 
                 # store edge vehicle counts in connection_info.edge_vehicle_count
                 self.get_edge_vehicle_counts()
-
+                #initialize vehicles to be directed
+                vehicles_to_direct = []
                 # iterate through vehicles currently in simulation
                 for vehicle_id in vehicle_ids:
 
                     #should not be added because there is no corresponding -1, this makes edge_vehicle_count becomes the total number of vehicles that used to be on this edge.
                     #self.connection_info.edge_vehicle_count[traci.vehicle.getRoadID(vehicle_id)] += 1
+                    
+                    
 
                     # handle newly arrived controlled vehicles
                     if vehicle_id not in vehicle_IDs_in_simulation and vehicle_id in self.controlled_vehicles:
@@ -82,10 +85,12 @@ class StrSumo:
                         elif current_edge == self.controlled_vehicles[vehicle_id].destination:
                             continue
 
+                        #print("{} now on: {}, records on {}; {} ".format(vehicle_id, current_edge, self.controlled_vehicles[vehicle_id].current_edge, current_edge!=self.controlled_vehicles[vehicle_id].current_edge))
                         if current_edge != self.controlled_vehicles[vehicle_id].current_edge:
                             self.controlled_vehicles[vehicle_id].current_edge = current_edge
                             self.controlled_vehicles[vehicle_id].current_speed = traci.vehicle.getSpeed(vehicle_id)
                             vehicles_to_direct.append(self.controlled_vehicles[vehicle_id])
+                #print(len(vehicles_to_direct))
                 vehicle_decisions_by_id = self.route_controller.make_decisions(vehicles_to_direct, self.connection_info)
                 for vehicle_id, local_target_edge in vehicle_decisions_by_id.items():
                     # if decision not in self.connection_info.outgoing_edges_dict[self.controlled_vehicles[vehicle_id].current_edge]:
@@ -95,16 +100,29 @@ class StrSumo:
                     # current_edge_of_vehicle = self.controlled_vehicles[vehicle_id].current_edge
                     # target_edge = self.connection_info.outgoing_edges_dict[current_edge_of_vehicle][decision]
                     if vehicle_id in traci.vehicle.getIDList():
+                        #print("Changing the target of {} to {} with length {}".format(vehicle_id, local_target_edge, self.connection_info.edge_length_dict[local_target_edge]))
                         traci.vehicle.changeTarget(vehicle_id, local_target_edge)
+                        self.controlled_vehicles[vehicle_id].local_destination = local_target_edge
 
                 arrived_at_destination = traci.simulation.getArrivedIDList()
 
                 for vehicle_id in arrived_at_destination:
                     if vehicle_id in self.controlled_vehicles:
-                        total_time += step - self.controlled_vehicles[vehicle_id].start_time
-                        end_number += 1
+                        #print the raw result out to the terminal
+                        arrived_at_destination = False
+                        if self.controlled_vehicles[vehicle_id].local_destination == self.controlled_vehicles[vehicle_id].destination:
+                            arrived_at_destination = True
+                        time_span = step - self.controlled_vehicles[vehicle_id].start_time
+                        total_time += time_span
+                        miss = False
                         if step > self.controlled_vehicles[vehicle_id].deadline:
                             deadlines_missed.append(vehicle_id)
+                            miss = True
+                        end_number += 1
+                        print("Vehicle {} reaches the destination: {}, timespan: {}, deadline missed: {}"\
+                            .format(vehicle_id, arrived_at_destination, time_span, miss))
+                        if not arrived_at_destination:
+                            #print("{} - {}".format(self.controlled_vehicles[vehicle_id].local_destination, self.controlled_vehicles[vehicle_id].destination))
 
                 traci.simulationStep()
                 step += 1

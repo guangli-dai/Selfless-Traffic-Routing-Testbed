@@ -50,13 +50,20 @@ class RouteController(ABC):
             path_length = 0
             i = 0
 
-            while path_length <= vehicle.current_speed:
+            #the while is used to make sure the vehicle will not assume it arrives the destination beacuse the target edge is too short.
+            while path_length <= max(vehicle.current_speed, 20):
+                if current_target_edge == vehicle.destination:
+                    break
                 if i >= len(decision_list):
                     raise UserWarning(
-                        "not enough decisions provided to compute valid local target. TRACI will remove vehicle."
+                        "Not enough decisions provided to compute valid local target. TRACI will remove vehicle."
                     )
 
                 choice = decision_list[i]
+                if choice not in self.connection_info.outgoing_edges_dict[current_target_edge]:
+                    raise UserWarning(
+                            "Invalid direction. TRACI will remove vehicle."
+                        )
                 current_target_edge = self.connection_info.outgoing_edges_dict[current_target_edge][choice]
                 path_length += self.connection_info.edge_length_dict[current_target_edge]
 

@@ -476,7 +476,7 @@ class target_vehicles_generator:
                 #root.appendChild(temp_v)
             #append the vehicle to the final vehicle list
             ddl_now = random.randint(500,1000)#randomly set ddl in a range for now
-            v_now = Util.Vehicle(id_now, r[1][1].getID(), release_time, ddl_now)
+            v_now = Util.Vehicle(str(id_now), r[1][1].getID(), release_time, ddl_now)
             vehicle_list.append(v_now)
             release_time += release_period
             id_now += 1
