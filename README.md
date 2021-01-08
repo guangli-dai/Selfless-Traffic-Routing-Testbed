@@ -1,26 +1,66 @@
 ***Description of the project***
 
-**Target**
+**Target (What is this project about?)**
 
 * Builds a test bed for selfless traffic routing based on SUMO: STR-SUMO.
 * Tests existing selfish traffic routing algorithms on STR-SUMO.
 * Develops and tests heuristic selfless traffic routing algorithms on STR-SUMO.
-* (Optional) Use model-based reinforcement learning to generate selfless traffic routing algorithms with STR-SUMO.
 
-**Route Map**
+**Usage (How to use the project)**
+To run the project, you need at least two self-defined components:
+* A map in the form of XML. Some sample maps are given in the test directory. More sample maps will be given.
+* A route controller inheriting class RouteController that includes a self-defined function make_decisions.
 
-Phase 1:
+With the two components ready, you can start testing the routing policy using the codes below (extracted from test/test_main_STR_SUMO.py). Specifically, the codes below uses the DijkstraPolicy.
 
-* Randomly generate start points and end points.
-* Use TraCI to connect scheduling algorithms and SUMO.
-* Combine both parts for tests.
+```
+from STR_SUMO import StrSumo
+import os
+import sys
+from xml.dom.minidom import parse, parseString
+from Util import *
+from RouteController import *
+from DijkstraController import DijkstraPolicy
 
-Phase 2:
+if 'SUMO_HOME' in os.environ:
+    tools = os.path.join(os.environ['SUMO_HOME'], 'tools')
+    sys.path.append(tools)
+else:
+    sys.exit("No environment variable SUMO_HOME!")
 
-* Choose and implement existing selfish traffic scheduling algorithms.
-* Design and implement heuristic selfless traffic scheduling algorithms.
+from sumolib import checkBinary
+import traci
 
+def run_simulation(scheduler):
+    simulation = StrSumo(scheduler, init_connection_info, route_file)
 
+    traci.start([sumo_binary, "-c", "myconfig.sumocfg",
+                 "--tripinfo-output", "trips.trips.xml", "--fcd-output", "testTrace.xml"])
+
+    total_time, end_number, deadlines_missed = simulation.run()
+    print(str(total_time) + ' for ' + str(end_number) + ' vehicles.')
+    print(str(deadlines_missed) + ' deadlines missed.')
+
+sumo_binary = checkBinary('sumo-gui')#test with gui
+# sumo_binary = checkBinary('sumo')#test without gui
+
+# parse config file for map file name
+dom = parse("myconfig.sumocfg")
+
+net_file_node = dom.getElementsByTagName('net-file')
+net_file_attr = net_file_node[0].attributes
+
+net_file = net_file_attr['value'].nodeValue
+init_connection_info = ConnectionInfo(net_file)
+
+route_file_node = dom.getElementsByTagName('route-files')
+route_file_attr = route_file_node[0].attributes
+route_file = route_file_attr['value'].nodeValue
+
+print("Testing Dijkstra's Algorithm Route Controller")
+scheduler = DijkstraPolicy(init_connection_info)
+run_simulation(scheduler)
+```
 
 ***Contribution Guidance***
 
