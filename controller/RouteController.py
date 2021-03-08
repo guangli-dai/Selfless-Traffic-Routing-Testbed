@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 import random
 import os
 import sys
-from Util import *
+from core.Util import *
 if 'SUMO_HOME' in os.environ:
     tools = os.path.join(os.environ['SUMO_HOME'], 'tools')
     sys.path.append(tools)

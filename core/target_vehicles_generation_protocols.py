@@ -11,8 +11,8 @@ import random
 import os
 import sys
 import xml.dom.minidom 
-import Util
-import network_map_data_structures
+from core import Util
+from core import network_map_data_structures
 
 
 # CHECK VERSION INFORMATION AND SET UP VERSION REFERENCE VARIABLES:
@@ -38,11 +38,7 @@ else:
 from sumolib import checkBinary
 import traci
 import sumolib
-#from keras.models import load_model
-# !!!
 
-
-import network_map_data_structures
 
 
 
@@ -64,15 +60,15 @@ class target_vehicles_generator:
     __ERROR_MESSAGE__ = "error message"
     
 
-    def __init__(self):
+    def __init__(self, net_file):
         """
-            TODO: Define necessary member variables!
+            :param @net_file<str>: The name of the network file (in the form of XML)
         """
         self.length_dict = None
         self.out_dict = None
         self.index_dict = None
         self.edge_list = None
-        self.net = network_map_data_structures.getNetInfo("test.net.xml")
+        self.net = network_map_data_structures.getNetInfo(net_file)
         [self.length_dict, self.out_dict, self.index_dict, self.edge_list] = network_map_data_structures.getEdgesInfo(self.net)
 
         self.__current_target_xml_file__ = ""
@@ -367,7 +363,7 @@ class target_vehicles_generator:
         """
             param @num_target_vehicles <int>: The number of target vehicles.
             param @num_random_vehicles <int>: The number of uncontrolled vehicles.
-            param @pattern <tuple>: one of four possible patterns. FORMAT:
+            param @pattern <tuple>: one of three possible patterns. FORMAT:
             -- CASES BEGIN --
                 #1. one start point, one destination for all target vehicles
                 #2. ranged start point, one destination for all target vehicles

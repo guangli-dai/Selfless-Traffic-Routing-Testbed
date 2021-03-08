@@ -1,8 +1,8 @@
 <configuration>
 
 <input>
-<net-file value="test.net.xml"/>
-<route-files value="test.rou.xml"/>
+<net-file value="simple_grid1.net.xml"/>
+<route-files value="str_sumo.rou.xml"/>
 </input>
 <output> <netstate-dump value="test_dump.xml" /> </output>
 <time>

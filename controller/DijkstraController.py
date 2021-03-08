@@ -1,5 +1,5 @@
-from RouteController import RouteController
-from Util import ConnectionInfo, Vehicle
+from controller.RouteController import RouteController
+from core.Util import ConnectionInfo, Vehicle
 import numpy as np
 import traci
 import math

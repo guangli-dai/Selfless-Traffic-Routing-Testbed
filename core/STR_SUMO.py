@@ -2,8 +2,8 @@ import os
 import sys
 import optparse
 from xml.dom.minidom import parse, parseString
-from Util import *
-from target_vehicles_generation_protocols import *
+from core.Util import *
+from core.target_vehicles_generation_protocols import *
 
 if 'SUMO_HOME' in os.environ:
     tools = os.path.join(os.environ['SUMO_HOME'], 'tools')
@@ -13,7 +13,7 @@ else:
 
 import traci
 import sumolib
-from RouteController import *
+from controller.RouteController import *
 
 """
 SUMO Selfless Traffic Routing (STR) Testbed
@@ -30,14 +30,16 @@ SLIGHT_LEFT = "L"
 SLIGHT_RIGHT = "R"
 
 class StrSumo:
-    def __init__(self, route_controller, connection_info, route_filename):
+    def __init__(self, route_controller, connection_info, controlled_vehicles):
         """
         :param route_controller: object that implements the scheduling algorithm for controlled vehicles
+        :param connection_info: object that includes the map information
+        :param controlled_vehicles: a dictionary that includes the vehicles under control
         """
         self.direction_choices = [STRAIGHT, TURN_AROUND, SLIGHT_RIGHT, RIGHT, SLIGHT_LEFT, LEFT]
         self.connection_info = connection_info
         self.route_controller = route_controller
-        self.controlled_vehicles = self.get_controlled_vehicles(route_filename)  # dictionary of Vehicles by id
+        self.controlled_vehicles =  controlled_vehicles # dictionary of Vehicles by id
         #print(self.controlled_vehicles)
 
     def run(self):
@@ -121,7 +123,7 @@ class StrSumo:
                         end_number += 1
                         print("Vehicle {} reaches the destination: {}, timespan: {}, deadline missed: {}"\
                             .format(vehicle_id, arrived_at_destination, time_span, miss))
-                        if not arrived_at_destination:
+                        #if not arrived_at_destination:
                             #print("{} - {}".format(self.controlled_vehicles[vehicle_id].local_destination, self.controlled_vehicles[vehicle_id].destination))
 
                 traci.simulationStep()
@@ -143,15 +145,3 @@ class StrSumo:
         for edge in self.connection_info.edge_list:
             self.connection_info.edge_vehicle_count[edge] = traci.edge.getLastStepVehicleNumber(edge)
 
-    # use vehicle generation protocols to generate vehicle list
-    def get_controlled_vehicles(self, route_filename, num_controlled_vehicles=10, num_uncontrolled_vehicles=20):
-        vehicle_dict = {}
-        generator = target_vehicles_generator()
-
-        # list of target vehicles is returned by generate_vehicles
-        vehicle_list = generator.generate_vehicles(num_controlled_vehicles, num_uncontrolled_vehicles, 3, route_filename, self.connection_info.net_filename)
-
-        for vehicle in vehicle_list:
-            vehicle_dict[str(vehicle.vehicle_id)] = vehicle
-
-        return vehicle_dict
