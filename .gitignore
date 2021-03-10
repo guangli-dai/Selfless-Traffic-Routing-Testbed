@@ -4,3 +4,5 @@
 trips.trips*.xml
 *.pyc
 *.dump.xml
+configurations/test_dump.xml
+configurations/testTrace.xml
