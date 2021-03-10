@@ -27,6 +27,7 @@ python3 main.py
 It will show the benchmarking results of the Dijkstra routing policy for a set of vehicles sharing the same start point and the same destination.
 
 Next, we walk through each subdirectory.
+
 **configurations**
 
 Includes the mandatory configuration file: \*.sumocfg and \*.net.xml. Note that the \*.net.xml you specify in the sumocfg file must be placed directly in the configuration file repository.
